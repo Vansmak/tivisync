@@ -1,80 +1,93 @@
 package com.tivisync;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
-import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.os.StrictMode;
+import android.util.Log;
+import androidx.core.content.FileProvider;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
-public class SetupActivity extends Activity {
+public class MainActivity extends Activity {
 
-    private EditText etUrl;
+    private static final String TAG = "TiviSync";
+    private static final String TIVIMATE_PACKAGE = "ar.tvplayer.tv";
+    static final String PREF_SERVER_URL = "server_url";
+    static final String PREF_LAST_RESTORED = "last_restored";
+    static final String PREF_SETUP_DONE = "setup_done";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder().permitAll().build());
 
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(80, 60, 80, 60);
+        SharedPreferences prefs = getSharedPreferences("tivisync_prefs", MODE_PRIVATE);
 
-        TextView title = new TextView(this);
-        title.setText("TiviSync Setup");
-        title.setTextSize(28);
-        title.setTextColor(0xFFFFFFFF);
-        title.setPadding(0, 0, 0, 40);
-        layout.addView(title);
-
-        TextView sub = new TextView(this);
-        sub.setText("Enter your TiviSync server URL");
-        sub.setTextSize(14);
-        sub.setTextColor(0xFFAAAAAA);
-        sub.setPadding(0, 0, 0, 20);
-        layout.addView(sub);
-
-        etUrl = new EditText(this);
-        etUrl.setHint("http://192.168.x.x:5005");
-        etUrl.setTextColor(0xFFFFFFFF);
-        etUrl.setHintTextColor(0xFF666666);
-        etUrl.setBackgroundColor(0xFF2D2D44);
-        etUrl.setPadding(20, 20, 20, 20);
-        etUrl.setTextSize(15);
-        layout.addView(etUrl);
-
-        Button btn = new Button(this);
-        btn.setText("Save");
-        btn.setTextSize(16);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.setMargins(0, 40, 0, 0);
-        btn.setLayoutParams(p);
-        btn.setOnClickListener(v -> save());
-        layout.addView(btn);
-
-        scroll.addView(layout);
-        setContentView(scroll);
-        getWindow().getDecorView().setBackgroundColor(0xFF1A1A2E);
-    }
-
-    private void save() {
-        String url = etUrl.getText().toString().trim();
-        if (url.isEmpty()) {
-            Toast.makeText(this, "Enter server URL", Toast.LENGTH_SHORT).show();
+        if (!prefs.getBoolean(PREF_SETUP_DONE, false)) {
+            startActivity(new Intent(this, SetupActivity.class));
+            finish();
             return;
         }
-        getSharedPreferences("tivisync_prefs", MODE_PRIVATE)
-            .edit()
-            .putString(MainActivity.PREF_SERVER_URL, url)
-            .putBoolean(MainActivity.PREF_SETUP_DONE, true)
-            .apply();
-        Toast.makeText(this, "Saved!", Toast.LENGTH_SHORT).show();
+
+        try {
+            String serverUrl = prefs.getString(PREF_SERVER_URL, "");
+            String lastRestored = prefs.getString(PREF_LAST_RESTORED, "");
+            String tiviVersion = getTiviMateVersion();
+
+            String syncUrl = serverUrl + "/sync?version=" + tiviVersion + "&last=" + lastRestored;
+            URL url = new URL(syncUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setInstanceFollowRedirects(false);
+
+            int status = conn.getResponseCode();
+
+            if (status == 302 || status == 301) {
+                Intent launch = getPackageManager().getLaunchIntentForPackage(TIVIMATE_PACKAGE);
+                if (launch != null) startActivity(launch);
+            } else if (status == 200) {
+                String disposition = conn.getHeaderField("Content-Disposition");
+                String filename = "tivisync_backup.tmb";
+                if (disposition != null && disposition.contains("filename=")) {
+                    filename = disposition.replaceAll(".*filename=", "").replace("\"", "").trim();
+                }
+
+                File localFile = new File(getCacheDir(), filename);
+                try (InputStream in = conn.getInputStream();
+                     FileOutputStream out = new FileOutputStream(localFile)) {
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                }
+
+                prefs.edit().putString(PREF_LAST_RESTORED, filename).apply();
+
+                Uri fileUri = FileProvider.getUriForFile(this, getPackageName() + ".provider", localFile);
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setDataAndType(fileUri, "application/octet-stream");
+                intent.setPackage(TIVIMATE_PACKAGE);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Sync error: " + e.getMessage(), e);
+        }
+
         finish();
+    }
+
+    private String getTiviMateVersion() {
+        try {
+            return getPackageManager().getPackageInfo(TIVIMATE_PACKAGE, 0).versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            return "5.2.0";
+        }
     }
 }
