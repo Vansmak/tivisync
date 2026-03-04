@@ -8,11 +8,12 @@ TiviSync is a personal tool that lets you keep TiViMate in sync across multiple 
 
 ## How It Works
 
-1. You make a backup in TiViMate on your main device — it saves a `.tmb` file to your network share
-2. On any other device, tap the TiviSync app
-3. TiviSync checks your server for a newer backup
-4. If one exists, it downloads it and opens TiViMate's restore dialog automatically
-5. If you're already up to date, nothing happens
+1. Each device has its own subfolder on your network share (e.g. `usbshare/office`, `usbshare/familyroom`)
+2. TiViMate on each device saves its backups into that device's subfolder
+3. On any device, tap the TiviSync app
+4. TiviSync asks the server for the newest `.tmb` file across **all other device subfolders**
+5. If a newer backup exists, it downloads it and opens TiViMate's restore dialog automatically
+6. If you're already up to date, nothing happens
 
 ---
 
@@ -25,9 +26,29 @@ TiviSync is a personal tool that lets you keep TiViMate in sync across multiple 
 
 ---
 
+## Folder Structure
+
+TiviSync uses a **per-device subfolder** layout so each device has its own backup location and the server can find the newest backup from any *other* device.
+
+```
+/mnt/usbshare/          ← parent share folder (mounted into Docker)
+├── office/             ← backups from the office TV
+│   └── v5208_2024-01-15_21-30-00.tmb
+├── familyroom/         ← backups from the family room TV
+│   └── v5208_2024-01-14_18-00-00.tmb
+└── bedroom/            ← backups from the bedroom TV
+    └── v5208_2024-01-13_09-15-00.tmb
+```
+
+- Each device's TiViMate backup destination must be its own subfolder on the share
+- The subfolder name is the **device name** used in the TiviSync URL (e.g. `office`, `familyroom`)
+- When a device syncs, the server scans **all other subfolders** and serves the newest `.tmb` file found — so every device always gets the most recent backup from the rest of the fleet
+
+---
+
 ## Part 1: Flask Server Setup
 
-The server reads your backup folder and serves the newest `.tmb` file to your devices.
+The server mounts the **parent share folder** (not a device subfolder) and discovers backups across all subfolders automatically.
 
 ### Option A: Docker Hub (easiest)
 
@@ -36,11 +57,11 @@ docker run -d \
   --name tivisync \
   --restart unless-stopped \
   -p 5005:5005 \
-  -v /path/to/your/backups:/backups:ro \
+  -v /mnt/usbshare:/backups:ro \
   vansmak/tivisync
 ```
 
-Replace `/path/to/your/backups` with the local path where TiViMate saves backups on your server.
+Replace `/mnt/usbshare` with the local path of your parent share folder on the server (the folder that *contains* the per-device subfolders).
 
 ### Option B: Docker Compose
 
@@ -56,7 +77,7 @@ services:
     ports:
       - "5005:5005"
     volumes:
-      - /path/to/your/backups:/backups:ro
+      - /mnt/usbshare:/backups:ro
 ```
 
 Then run:
@@ -68,10 +89,10 @@ docker compose up -d
 
 Open a browser and go to:
 ```
-http://YOUR_SERVER_IP:5005/latest?version=5.2.0
+http://YOUR_SERVER_IP:5005/office/latest?version=5.2.0
 ```
 
-You should see a JSON response with the newest backup filename.
+You should see a JSON response with the newest backup filename found across all subfolders *other than* `office`.
 
 ---
 
@@ -118,13 +139,27 @@ adb connect YOUR_TV_IP:5555
 adb install app-debug.apk
 ```
 
+### Step 4b: Configure TiViMate Backup Destination
+
+Before running TiviSync, make sure TiViMate on this device is set to back up to its own subfolder on your network share:
+
+1. In TiViMate go to **Settings → General → Backup**
+2. Set the backup path to the device's subfolder — e.g. `\\YOUR_NAS\usbshare\office` for the office TV
+3. Take at least one manual backup so the subfolder and a `.tmb` file exist
+
 ### Step 5: First Run Setup
 
 1. Launch **TiviSync** from your app list
 2. A setup screen will appear asking for your server URL
-3. Enter: `http://YOUR_SERVER_IP:5005`
+3. Enter the full URL **including your device's subfolder name**:
+   ```
+   http://YOUR_SERVER_IP:5005/office
+   ```
+   Use the name that matches the subfolder you configured in TiViMate (e.g. `office`, `familyroom`, `bedroom`)
 4. Tap **Save**
-5. TiviSync will immediately check for a backup and show TiViMate's restore dialog if one is found
+5. TiviSync will immediately check for a newer backup from any other device and show TiViMate's restore dialog if one is found
+
+> **Important:** The device name in the URL must exactly match the subfolder name on the share. The server uses this name to exclude the current device's own backups when searching for the newest file.
 
 After the first run, setup is complete. Every subsequent launch just does the sync silently.
 
@@ -159,7 +194,9 @@ No Android Studio or local build tools required.
 
 **TiViMate restore dialog doesn't appear:**
 - Check that your Flask server is running: `docker logs tivisync`
-- Verify the backup folder path is correct and contains `.tmb` files
+- Verify the parent share folder is mounted correctly and each device subfolder contains `.tmb` files
+- Confirm the device name in your TiviSync URL matches the subfolder name exactly (case-sensitive)
+- Make sure at least one *other* device has a backup — the server searches all subfolders except the requesting device's own
 - Make sure the TiViMate version prefix in the filename matches (e.g. `v5208` for version 5.2.x)
 
 **"Cleartext HTTP not permitted" error:**
