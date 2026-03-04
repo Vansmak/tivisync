@@ -31,7 +31,7 @@ public class SetupActivity extends Activity {
         layout.addView(title);
 
         TextView sub = new TextView(this);
-        sub.setText("Enter your TiviSync server URL");
+        sub.setText("Enter your TiviSync server URL e.g. http://192.168.x.x:5005");
         sub.setTextSize(14);
         sub.setTextColor(0xFFAAAAAA);
         sub.setPadding(0, 0, 0, 20);
@@ -70,8 +70,8 @@ public class SetupActivity extends Activity {
         }
         getSharedPreferences("tivisync_prefs", MODE_PRIVATE)
             .edit()
-            .putString(MainActivity.PREF_SERVER_URL, url)
-            .putBoolean(MainActivity.PREF_SETUP_DONE, true)
+            .putString("server_url", url)
+            .putBoolean("setup_done", true)
             .apply();
         Toast.makeText(this, "Saved!", Toast.LENGTH_SHORT).show();
         finish();
