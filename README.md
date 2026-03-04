@@ -1,6 +1,8 @@
 # TiviSync
 
-**Automatic TiViMate backup sync for Android TV devices on your local network.**
+**Semi-Automatic TiViMate backup sync for Android TV devices on your local network.**
+[![Buy Me A Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/vansmak)
+
 
 TiviSync is a personal tool that lets you keep TiViMate in sync across multiple Android TV devices with a single tap. It consists of a lightweight Flask server that runs on your home server and a small Android app you sideload onto each TV device.
 
