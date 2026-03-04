@@ -36,6 +36,6 @@ android {
 
 dependencies {
     implementation 'androidx.core:core:1.12.0'
-    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+    implementation 'androidx.security:security-crypto:1.0.0'
     implementation 'eu.agno3.jcifs:jcifs-ng:2.1.10'
 }
