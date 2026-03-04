@@ -31,20 +31,27 @@ public class SetupActivity extends Activity {
         layout.addView(title);
 
         TextView sub = new TextView(this);
-        sub.setText("Enter your TiviSync server URL e.g. http://192.168.x.x:5005");
+        sub.setText("Enter your TiviSync server URL including this device's name:");
         sub.setTextSize(14);
         sub.setTextColor(0xFFAAAAAA);
         sub.setPadding(0, 0, 0, 20);
         layout.addView(sub);
 
         etUrl = new EditText(this);
-        etUrl.setHint("http://192.168.x.x:5005");
+        etUrl.setHint("http://192.168.x.x:5005/devicename");
         etUrl.setTextColor(0xFFFFFFFF);
         etUrl.setHintTextColor(0xFF666666);
         etUrl.setBackgroundColor(0xFF2D2D44);
         etUrl.setPadding(20, 20, 20, 20);
         etUrl.setTextSize(15);
         layout.addView(etUrl);
+
+        TextView note = new TextView(this);
+        note.setText("The device name must match this device's backup subfolder on your share (e.g. office, familyroom, bedroom).");
+        note.setTextSize(12);
+        note.setTextColor(0xFF888888);
+        note.setPadding(0, 12, 0, 0);
+        layout.addView(note);
 
         Button btn = new Button(this);
         btn.setText("Save");

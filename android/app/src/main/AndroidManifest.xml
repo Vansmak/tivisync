@@ -8,6 +8,7 @@
     <application
         android:allowBackup="false"
         android:label="TiviSync"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.NoDisplay"
         android:usesCleartextTraffic="true">
 

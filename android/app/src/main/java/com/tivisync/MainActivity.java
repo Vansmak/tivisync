@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
             String lastRestored = prefs.getString(PREF_LAST_RESTORED, "");
             String tiviVersion = getTiviMateVersion();
 
-            String syncUrl = serverUrl + "/sync?version=" + tiviVersion + "&last=" + lastRestored;
+            String syncUrl = serverUrl + "?version=" + tiviVersion + "&last=" + lastRestored;
             URL url = new URL(syncUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setInstanceFollowRedirects(false);
