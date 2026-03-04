@@ -24,6 +24,7 @@
         <activity
             android:name=".SetupActivity"
             android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault"
             android:label="TiviSync Setup" />
 
         <provider
