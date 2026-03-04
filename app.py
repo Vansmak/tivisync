@@ -8,7 +8,7 @@ from pathlib import Path
 app = Flask(__name__)
 
 # Config
-BACKUP_DIR = "/backups"  # Mount your USBShare folder here
+BACKUP_DIR = "/backups"  # Mount your USBShare folder here; each device has its own subfolder
 TIVIMATE_PACKAGE = "ar.tvplayer.tv"
 
 # In-memory log of device syncs
@@ -18,98 +18,105 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("TiviSync")
 
 
-def get_tivimate_version_from_query():
-    """Get TiViMate version passed as query param from the device."""
-    return request.args.get("version", "")
+def get_version_prefix(version_string):
+    """Convert '5.2.0' to '520' for filename matching."""
+    if not version_string:
+        return ""
+    digits = version_string.replace(".", "")
+    return digits[:3]
 
 
-def find_newest_tmb(version_prefix):
-    """Find the newest .tmb file matching the given version prefix."""
+def find_newest_tmb(version_prefix, exclude_device):
+    """
+    Find the newest .tmb file matching the given version prefix across all
+    device subfolders except the requesting device's own folder.
+    """
     backup_path = Path(BACKUP_DIR)
     if not backup_path.exists():
         logger.error(f"Backup directory {BACKUP_DIR} not found")
         return None
 
-    # Match files like TiViMate_backup_20260227_144700_v5208.tmb
-    pattern = re.compile(r"TiviMate_backup_\d{8}_\d{6}_v" + re.escape(version_prefix) + r".*\.tmb", re.IGNORECASE)
+    pattern = re.compile(
+        r"TiviMate_backup_\d{8}_\d{6}_v" + re.escape(version_prefix) + r".*\.tmb",
+        re.IGNORECASE,
+    )
+    broad_pattern = re.compile(r".*v" + re.escape(version_prefix) + r".*\.tmb", re.IGNORECASE)
 
-    matches = [f for f in backup_path.iterdir() if f.is_file() and pattern.match(f.name)]
-
-    if not matches:
-        # Try broader match just on version prefix
-        broad_pattern = re.compile(r".*v" + re.escape(version_prefix) + r".*\.tmb", re.IGNORECASE)
-        matches = [f for f in backup_path.iterdir() if f.is_file() and broad_pattern.match(f.name)]
+    matches = []
+    for subfolder in backup_path.iterdir():
+        if not subfolder.is_dir():
+            continue
+        if subfolder.name.lower() == exclude_device.lower():
+            continue
+        for f in subfolder.iterdir():
+            if not f.is_file():
+                continue
+            if pattern.match(f.name) or broad_pattern.match(f.name):
+                matches.append(f)
 
     if not matches:
         return None
 
-    # Sort by filename descending (timestamp in name = newest last alphabetically)
     matches.sort(key=lambda f: f.name, reverse=True)
     return matches[0]
 
 
-def get_version_prefix(version_string):
-    """Convert '5.2.0' to '520' for filename matching."""
-    if not version_string:
-        return ""
-    # Remove dots and take first 3 digits
-    digits = version_string.replace(".", "")
-    return digits[:3]
-
-
-@app.route("/sync")
-def sync():
+@app.route("/<device>")
+def sync(device):
     """
     Main sync endpoint called by TV Quick Actions.
-    
+
+    URL path:
+      - device: identifies the requesting device (e.g. 'office', 'familyroom')
+
     Query params:
       - version: TiViMate version string e.g. 5.2.0
       - last: filename of last backup this device restored (optional)
-    
+
     Returns:
-      - The .tmb file if a newer one exists
+      - The .tmb file if a newer one exists in another device's subfolder
       - Redirect to launch TiViMate if already up to date
     """
     device_ip = request.remote_addr
     version = request.args.get("version", "")
     last_restored = request.args.get("last", "")
 
-    logger.info(f"Sync request from {device_ip} | version={version} | last={last_restored}")
+    logger.info(f"Sync request from {device_ip} (device={device}) | version={version} | last={last_restored}")
 
     if not version:
-        logger.warning(f"No version provided from {device_ip}")
+        logger.warning(f"No version provided from {device_ip} (device={device})")
         return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
 
     version_prefix = get_version_prefix(version)
-    newest = find_newest_tmb(version_prefix)
+    newest = find_newest_tmb(version_prefix, exclude_device=device)
 
     if newest is None:
-        logger.warning(f"No matching backup found for version prefix {version_prefix}")
+        logger.warning(f"No matching backup found for version prefix {version_prefix} (excluding {device})")
         return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
 
-    # Check if device already has this backup
     if last_restored and last_restored == newest.name:
-        logger.info(f"{device_ip} already up to date ({newest.name}), launching TiViMate")
-        sync_log[device_ip] = {
+        logger.info(f"{device_ip} ({device}) already up to date ({newest.name}), launching TiViMate")
+        sync_log[device] = {
+            "ip": device_ip,
             "status": "up_to_date",
             "file": newest.name,
-            "time": datetime.now().isoformat()
+            "time": datetime.now().isoformat(),
         }
         return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
 
-    # Serve the newest backup file
-    logger.info(f"Serving {newest.name} to {device_ip}")
-    sync_log[device_ip] = {
+    logger.info(f"Serving {newest.name} to {device_ip} ({device})")
+    sync_log[device] = {
+        "ip": device_ip,
         "status": "synced",
         "file": newest.name,
-        "time": datetime.now().isoformat()
+        "time": datetime.now().isoformat(),
     }
 
     return send_file(
         newest,
         as_attachment=True,
         download_name=newest.name,
-        mimetype="application/octet-stream"
+        mimetype="application/octet-stream",
     )
 
 
@@ -118,16 +125,17 @@ def status():
     """Simple status endpoint showing which devices have synced."""
     return jsonify({
         "backup_dir": BACKUP_DIR,
-        "devices": sync_log
+        "devices": sync_log,
     })
 
 
 @app.route("/latest")
 def latest():
-    """Returns just the filename of the newest backup for a given version."""
+    """Returns the filename of the newest backup for a given version across all subfolders."""
     version = request.args.get("version", "")
+    exclude = request.args.get("exclude", "__none__")
     version_prefix = get_version_prefix(version)
-    newest = find_newest_tmb(version_prefix)
+    newest = find_newest_tmb(version_prefix, exclude_device=exclude)
     if newest:
         return jsonify({"newest": newest.name})
     return jsonify({"newest": None}), 404
