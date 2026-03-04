@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdk 34
+    namespace 'com.tivisync'
+
+    defaultConfig {
+        applicationId "com.tivisync"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    packagingOptions {
+        pickFirst 'META-INF/LICENSE'
+        pickFirst 'META-INF/LICENSE.txt'
+        pickFirst 'META-INF/NOTICE'
+        pickFirst 'META-INF/NOTICE.txt'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+    implementation 'eu.agno3.jcifs:jcifs-ng:2.1.10'
+}
