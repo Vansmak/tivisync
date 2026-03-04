@@ -1,0 +1,11 @@
+services:
+  tivisync:
+    build: .
+    container_name: tivisync
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    volumes:
+      - /mnt/usbshare:/backups:ro
+    environment:
+      - TZ=America/Los_Angeles
