@@ -104,16 +104,16 @@ def sync(device):
     """
     device_ip = request.remote_addr
     file_type = request.args.get("type", "tmb").lower()
-    version = request.args.get("version", "")
     last_restored = request.args.get("last", "")
 
-    logger.info(f"[{file_type}] Sync request from {device_ip} (device={device}) | version={version} | last={last_restored}")
-
     if file_type == "plbackup":
+        logger.info(f"[plbackup] Sync request from {device_ip} (device={device}) | last={last_restored}")
         newest = find_newest_plbackup()
         redirect_url = f"intent:#Intent;package={PROJECTIVY_PACKAGE};end"
         log = plbackup_log
     else:
+        version = request.args.get("version", "")
+        logger.info(f"[tmb] Sync request from {device_ip} (device={device}) | version={version} | last={last_restored}")
         if not version:
             logger.warning(f"[tmb] No version provided from {device_ip} (device={device})")
             return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)

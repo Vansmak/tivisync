@@ -3,7 +3,6 @@ package com.projsync;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.StrictMode;
@@ -39,9 +38,8 @@ public class MainActivity extends Activity {
         try {
             String serverUrl = prefs.getString(PREF_SERVER_URL, "");
             String lastRestored = prefs.getString(PREF_LAST_RESTORED, "");
-            String projVersion = getProjectivyVersion();
 
-            String syncUrl = serverUrl + "?version=" + projVersion + "&last=" + lastRestored + "&type=plbackup";
+            String syncUrl = serverUrl + "?last=" + lastRestored + "&type=plbackup";
             URL url = new URL(syncUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setInstanceFollowRedirects(false);
@@ -84,11 +82,4 @@ public class MainActivity extends Activity {
         finish();
     }
 
-    private String getProjectivyVersion() {
-        try {
-            return getPackageManager().getPackageInfo(PROJECTIVY_PACKAGE, 0).versionName;
-        } catch (PackageManager.NameNotFoundException e) {
-            return "1.0";
-        }
-    }
 }
