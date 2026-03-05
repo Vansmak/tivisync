@@ -178,13 +178,74 @@ After the first run, setup is complete. Every subsequent launch just does the sy
 
 ## Building From Source
 
-If you prefer to build the APK yourself:
+If you prefer to build the APKs yourself:
 
 1. Fork this repo
-2. Go to **Actions → Build TiviSync APK → Run workflow**
-3. Download the APK from the Artifacts section of the completed run
+2. Go to **Actions → Build TiviSync & ProjSync APKs → Run workflow**
+3. Download the APKs from the Artifacts section of the completed run (**TiviSync-debug** and **ProjSync-debug**)
 
 No Android Studio or local build tools required.
+
+---
+
+## ProjSync — Projectivy Launcher Sync
+
+**ProjSync** is a companion app that syncs [Projectivy Launcher](https://www.projectivy.co.uk/) `.plbackup` files across your Android TV devices — using the **same Flask server** and the same per-device subfolder layout as TiviSync.
+
+### How ProjSync Works
+
+1. Each device has its own subfolder on your network share (same subfolders used by TiviSync)
+2. Projectivy Launcher saves its backups (`.plbackup` files) into that device's subfolder
+3. Tap the ProjSync app on any device
+4. ProjSync asks the server for the newest `.plbackup` across all subfolders
+5. If a newer backup exists, it downloads it and opens an **"Open with" dialog** — select **"Restore backup"** in Projectivy
+6. If you're already up to date, the app closes silently
+
+### Folder Structure
+
+ProjSync uses the same per-device subfolder layout. You can mix `.tmb` and `.plbackup` files in the same subfolders:
+
+```
+/mnt/usbshare/
+├── office/
+│   ├── TiviMate_backup_20240115_213000_v520.tmb
+│   └── projectivy_backup_20240115.plbackup
+├── familyroom/
+│   ├── TiviMate_backup_20240114_180000_v520.tmb
+│   └── projectivy_backup_20240114.plbackup
+└── bedroom/
+    └── projectivy_backup_20240113.plbackup
+```
+
+### ProjSync Setup
+
+**Step 1: Configure Projectivy backup destination**
+
+In Projectivy Launcher, set the backup path to the device's subfolder on your network share. Take at least one manual backup so the subfolder and a `.plbackup` file exist.
+
+**Step 2: Download and sideload the APK**
+
+From the [GitHub Actions Artifacts](https://github.com/vansmak/tivisync/actions), download **ProjSync-debug** from the same workflow run as TiviSync-debug. Sideload it onto each Android TV device.
+
+**Step 3: First run setup**
+
+Launch **ProjSync** from your app list. The setup screen will ask for the server URL — include the `/launcher` path suffix:
+
+```
+http://YOUR_SERVER_IP:5005/office/launcher
+```
+
+Use the same device subfolder name you use for TiviSync (e.g. `office`, `familyroom`, `bedroom`). Tap **Save**.
+
+**Step 4: Restoring a backup**
+
+When ProjSync finds a newer `.plbackup`, it will download it and show an **"Open with" dialog**. Select **Restore backup** in Projectivy Launcher to apply it.
+
+> **Note:** ProjSync does not launch Projectivy directly. The "Open with" dialog is intentional — it lets Projectivy handle the restore. If you're already up to date, the app closes silently with no dialog.
+
+### Server endpoint
+
+The `/launcher` route is served by the same Flask container. No additional configuration is needed — just use the `/devicename/launcher` URL format in ProjSync's setup.
 
 ---
 

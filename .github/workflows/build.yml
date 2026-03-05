@@ -1,4 +1,4 @@
-name: Build TiviSync APK
+name: Build TiviSync & ProjSync APKs
 
 on:
   push:
@@ -27,14 +27,21 @@ jobs:
         with:
           gradle-version: '8.2'
 
-      - name: Build debug APK
+      - name: Build debug APKs
         run: |
           cd android
           gradle assembleDebug
 
-      - name: Upload APK
+      - name: Upload TiviSync APK
         uses: actions/upload-artifact@v4
         with:
           name: TiviSync-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Upload ProjSync APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProjSync-debug
+          path: android/projsync/build/outputs/apk/debug/projsync-debug.apk
           retention-days: 30
