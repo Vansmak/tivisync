@@ -229,13 +229,15 @@ From the [GitHub Actions Artifacts](https://github.com/vansmak/tivisync/actions)
 
 **Step 3: First run setup**
 
-Launch **ProjSync** from your app list. The setup screen will ask for the server URL — include the `/launcher` path suffix:
+Launch **ProjSync** from your app list. The setup screen will ask for the server URL — use the same format as TiviSync (just the device name, no extra path suffix):
 
 ```
-http://YOUR_SERVER_IP:5005/office/launcher
+http://YOUR_SERVER_IP:5005/office
 ```
 
 Use the same device subfolder name you use for TiviSync (e.g. `office`, `familyroom`, `bedroom`). Tap **Save**.
+
+ProjSync automatically appends `&type=plbackup` to the request so the server knows to search for `.plbackup` files instead of `.tmb` files.
 
 **Step 4: Restoring a backup**
 
@@ -245,7 +247,7 @@ When ProjSync finds a newer `.plbackup`, it will download it and show an **"Open
 
 ### Server endpoint
 
-The `/launcher` route is served by the same Flask container. No additional configuration is needed — just use the `/devicename/launcher` URL format in ProjSync's setup.
+Both TiviSync and ProjSync use the same `/<device>` route on the Flask server. The `type=` query parameter (`tmb` or `plbackup`) tells the server which file type to search for. No additional server configuration is needed.
 
 ---
 

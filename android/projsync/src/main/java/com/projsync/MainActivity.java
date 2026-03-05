@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
             String lastRestored = prefs.getString(PREF_LAST_RESTORED, "");
             String projVersion = getProjectivyVersion();
 
-            String syncUrl = serverUrl + "?version=" + projVersion + "&last=" + lastRestored;
+            String syncUrl = serverUrl + "?version=" + projVersion + "&last=" + lastRestored + "&type=plbackup";
             URL url = new URL(syncUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setInstanceFollowRedirects(false);

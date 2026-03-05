@@ -94,54 +94,62 @@ def sync(device):
       - device: identifies the requesting device (e.g. 'office', 'familyroom')
 
     Query params:
-      - version: TiViMate version string e.g. 5.2.0
+      - type: 'tmb' (default) or 'plbackup'
+      - version: TiViMate version string e.g. 5.2.0 (used for tmb type only)
       - last: filename of last backup this device restored (optional)
 
     Returns:
-      - The .tmb file if a newer one exists in another device's subfolder
-      - Redirect to launch TiViMate if already up to date
+      - The backup file if a newer one exists in another device's subfolder
+      - Redirect if already up to date
     """
     device_ip = request.remote_addr
+    file_type = request.args.get("type", "tmb").lower()
     version = request.args.get("version", "")
     last_restored = request.args.get("last", "")
 
-    logger.info(f"[tmb] Sync request from {device_ip} (device={device}) | version={version} | last={last_restored}")
+    logger.info(f"[{file_type}] Sync request from {device_ip} (device={device}) | version={version} | last={last_restored}")
 
-    if not version:
-        logger.warning(f"[tmb] No version provided from {device_ip} (device={device})")
-        return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
-
-    version_prefix = get_version_prefix(version)
-    newest = find_newest_tmb(version_prefix)
+    if file_type == "plbackup":
+        newest = find_newest_plbackup()
+        redirect_url = f"intent:#Intent;package={PROJECTIVY_PACKAGE};end"
+        log = plbackup_log
+    else:
+        if not version:
+            logger.warning(f"[tmb] No version provided from {device_ip} (device={device})")
+            return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
+        version_prefix = get_version_prefix(version)
+        newest = find_newest_tmb(version_prefix)
+        redirect_url = f"intent:#Intent;package={TIVIMATE_PACKAGE};end"
+        log = tmb_log
 
     if newest is None:
-        logger.warning(f"[tmb] No matching backup found for version prefix {version_prefix}")
-        return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
+        logger.warning(f"[{file_type}] No matching backup found for {device_ip} (device={device})")
+        return redirect(redirect_url, 302)
 
     # The newest file lives in this device's own folder — it made that backup
     if newest.parent.name.lower() == device.lower():
-        logger.info(f"[tmb] {device_ip} ({device}) owns the newest backup ({newest.name}), launching TiViMate")
-        tmb_log[device] = {
+        logger.info(f"[{file_type}] {device_ip} ({device}) owns the newest backup ({newest.name})")
+        log[device] = {
             "ip": device_ip,
             "status": "up_to_date",
             "file": newest.name,
             "time": datetime.now().isoformat(),
         }
-        return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
+        return redirect(redirect_url, 302)
 
     # Newest is from another device — check if this device already restored it
     if last_restored and last_restored == newest.name:
-        logger.info(f"[tmb] {device_ip} ({device}) already up to date ({newest.name}), launching TiViMate")
-        tmb_log[device] = {
+        logger.info(f"[{file_type}] {device_ip} ({device}) already up to date ({newest.name})")
+        log[device] = {
             "ip": device_ip,
             "status": "up_to_date",
             "file": newest.name,
             "time": datetime.now().isoformat(),
         }
-        return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
+        return redirect(redirect_url, 302)
 
-    logger.info(f"[tmb] Serving {newest.name} to {device_ip} ({device})")
-    tmb_log[device] = {
+    logger.info(f"[{file_type}] Serving {newest.name} to {device_ip} ({device})")
+    log[device] = {
         "ip": device_ip,
         "status": "synced",
         "file": newest.name,
