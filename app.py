@@ -26,10 +26,10 @@ def get_version_prefix(version_string):
     return digits[:3]
 
 
-def find_newest_tmb(version_prefix, exclude_device):
+def find_newest_tmb(version_prefix):
     """
-    Find the newest .tmb file matching the given version prefix across all
-    device subfolders except the requesting device's own folder.
+    Find the newest .tmb file matching the given version prefix across ALL
+    device subfolders under BACKUP_DIR.
     """
     backup_path = Path(BACKUP_DIR)
     if not backup_path.exists():
@@ -45,8 +45,6 @@ def find_newest_tmb(version_prefix, exclude_device):
     matches = []
     for subfolder in backup_path.iterdir():
         if not subfolder.is_dir():
-            continue
-        if subfolder.name.lower() == exclude_device.lower():
             continue
         for f in subfolder.iterdir():
             if not f.is_file():
@@ -88,12 +86,24 @@ def sync(device):
         return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
 
     version_prefix = get_version_prefix(version)
-    newest = find_newest_tmb(version_prefix, exclude_device=device)
+    newest = find_newest_tmb(version_prefix)
 
     if newest is None:
-        logger.warning(f"No matching backup found for version prefix {version_prefix} (excluding {device})")
+        logger.warning(f"No matching backup found for version prefix {version_prefix}")
         return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
 
+    # The newest file lives in this device's own folder — it made that backup
+    if newest.parent.name.lower() == device.lower():
+        logger.info(f"{device_ip} ({device}) owns the newest backup ({newest.name}), launching TiViMate")
+        sync_log[device] = {
+            "ip": device_ip,
+            "status": "up_to_date",
+            "file": newest.name,
+            "time": datetime.now().isoformat(),
+        }
+        return redirect(f"intent:#Intent;package={TIVIMATE_PACKAGE};end", 302)
+
+    # Newest is from another device — check if this device already restored it
     if last_restored and last_restored == newest.name:
         logger.info(f"{device_ip} ({device}) already up to date ({newest.name}), launching TiViMate")
         sync_log[device] = {
@@ -133,9 +143,8 @@ def status():
 def latest():
     """Returns the filename of the newest backup for a given version across all subfolders."""
     version = request.args.get("version", "")
-    exclude = request.args.get("exclude", "__none__")
     version_prefix = get_version_prefix(version)
-    newest = find_newest_tmb(version_prefix, exclude_device=exclude)
+    newest = find_newest_tmb(version_prefix)
     if newest:
         return jsonify({"newest": newest.name})
     return jsonify({"newest": None}), 404
